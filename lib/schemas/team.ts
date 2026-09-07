@@ -33,6 +33,13 @@ export const changeRoleSchema = z.object({
 });
 export type ChangeRoleInput = z.infer<typeof changeRoleSchema>;
 
+export const createMemberSchema = z.object({
+  name: z.string().min(2).max(200),
+  email: z.string().email(),
+  role: z.enum(ROLES),
+});
+export type CreateMemberInput = z.infer<typeof createMemberSchema>;
+
 export const createApiTokenSchema = z.object({
   name: z.string().min(2).max(100),
   scopes: z.array(z.string()).min(1),
