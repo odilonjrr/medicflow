@@ -68,7 +68,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   } else {
     userId = createData.user.id;
     tempPassword = randomUUID().slice(0, 12);
-    await admin.auth.admin.updateUser(userId, { password: tempPassword });
+    await admin.auth.admin.updateUserById(userId, { password: tempPassword });
   }
 
   const alreadyMember = existingMembers?.some((m) => m.user_id === userId);
@@ -121,7 +121,7 @@ export async function POST(req: NextRequest): Promise<Response> {
   }
 
   await audit({
-    action: "member.created",
+    action: "member.accepted",
     actorUserId: authUser.id,
     organizationId: activeOrg.orgId,
     resourceType: "membership",
