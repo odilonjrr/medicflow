@@ -16,6 +16,7 @@ import { HistoricoDaAgenda } from "@/components/agenda/HistoricoDaAgenda";
 import type { Agendamento, HorarioLivre, VisaoDaAgenda } from "@/components/agenda/tipos";
 import { EmptyAgenda } from "@/components/empty";
 import { rotuloDoLocal } from "@/lib/agenda/locais";
+import { rotuloDoContato } from "@/lib/contacts/rotulo-do-contato";
 import { Button } from "@/components/ui/button";
 import { PainelDeMarcacao } from "@/components/agenda/PainelDeMarcacao";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -28,7 +29,8 @@ import {
   useRemarcarAgendamento,
 } from "@/hooks/agenda/useRemarcarAgendamento";
 import { usePessoasDaAgenda } from "@/hooks/agenda/usePessoasDaAgenda";
-import { CalendarPlus, CaretLeft, CaretRight } from "@/lib/ui/icons";
+import { useContactList } from "@/hooks/contacts/useContactList";
+import { CalendarPlus, CaretLeft, CaretRight, MagnifyingGlass, UserCircle, X } from "@/lib/ui/icons";
 import { cn } from "@/lib/utils";
 
 const VISOES: Array<{ id: VisaoDaAgenda; rotulo: string }> = [
@@ -106,6 +108,27 @@ export function AgendaClient({
   // o que a equipe lê ao ver o horário vago.
   const [cancelandoId, setCancelandoId] = React.useState<string | null>(null);
   const [motivo, setMotivo] = React.useState("");
+  // O PACIENTE/CONTATO que será atendido — opcional, mas é o que dá nome ao
+  // agendamento na grade e no histórico.
+  const [contatoSelecionado, setContatoSelecionado] = React.useState<{
+    id: string;
+    nome: string;
+    aceitaMensagem: boolean;
+  } | null>(null);
+  const [buscaContato, setBuscaContato] = React.useState("");
+  const [buscaContatoDebounced, setBuscaContatoDebounced] = React.useState("");
+  React.useEffect(() => {
+    const t = setTimeout(() => setBuscaContatoDebounced(buscaContato.trim()), 250);
+    return () => clearTimeout(t);
+  }, [buscaContato]);
+  const listaContatos = useContactList({
+    search: buscaContatoDebounced || undefined,
+    limit: 10,
+  });
+  const contatos =
+    listaContatos.data?.pages
+      .flatMap((p) => p.data)
+      .filter((c) => !c.is_anonymized && !c.is_merged_into) ?? [];
   // O CONVIDADO, opcional. Vazio mantém o comportamento de sempre: evento no
   // Google do atendente, sem `attendees` e sem convite saindo para ninguém.
   const [emailConvidado, setEmailConvidado] = React.useState("");
@@ -442,6 +465,8 @@ export function AgendaClient({
             // não usado reapareceria na PRÓXIMA marcação, que é de outro
             // cliente — convite para a pessoa errada, sem ninguém ter pedido.
             setEmailConvidado("");
+            setContatoSelecionado(null);
+            setBuscaContato("");
           }
         }}
       >
@@ -507,6 +532,97 @@ export function AgendaClient({
               </div>
             </div>
           )}
+          {/* PACIENTE/CONTATO — quem será atendido neste agendamento. */}
+          <div className="mt-4">
+            <p className="mb-1 text-xs font-medium text-text-muted">
+              {t("Paciente / Contato")}{" "}
+              <span className="font-normal opacity-70">({t("opcional")})</span>
+            </p>
+            {contatoSelecionado ? (
+              <div className="flex items-center gap-2 rounded-md border border-accent bg-accent/10 px-3 py-2">
+                <UserCircle size={20} weight="duotone" className="shrink-0 text-accent" aria-hidden />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                  {contatoSelecionado.nome}
+                </span>
+                <button
+                  type="button"
+                  aria-label={t("Remover paciente")}
+                  className="shrink-0 rounded p-0.5 text-text-muted hover:text-text"
+                  onClick={() => setContatoSelecionado(null)}
+                >
+                  <X size={14} weight="bold" aria-hidden />
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="relative">
+                  <MagnifyingGlass
+                    size={14}
+                    className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    aria-hidden
+                  />
+                  <input
+                    data-testid="busca-contato-agendamento"
+                    type="text"
+                    autoComplete="off"
+                    value={buscaContato}
+                    onChange={(e) => setBuscaContato(e.target.value)}
+                    className="w-full rounded-md border border-border bg-surface py-2 pl-8 pr-2 text-sm outline-hidden focus:border-border-strong"
+                    placeholder={t("Buscar por nome, telefone ou e-mail…")}
+                  />
+                </div>
+                {buscaContato.trim().length > 0 && (
+                  <div className="max-h-40 overflow-y-auto rounded-md border border-border">
+                    {listaContatos.isLoading && contatos.length === 0 ? (
+                      <p className="px-3 py-3 text-center text-xs text-muted-foreground">
+                        {t("Buscando…")}
+                      </p>
+                    ) : contatos.length === 0 ? (
+                      <p className="px-3 py-3 text-center text-xs text-muted-foreground">
+                        {t("Nenhum contato encontrado.")}
+                      </p>
+                    ) : (
+                      <ul className="divide-y divide-border">
+                        {contatos.map((c) => (
+                          <li key={c.id}>
+                            <button
+                              type="button"
+                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-muted"
+                              onClick={() => {
+                                setContatoSelecionado({
+                                  id: c.id,
+                                  nome: rotuloDoContato(c, t),
+                                  aceitaMensagem: !c.is_blocked,
+                                });
+                                setBuscaContato("");
+                              }}
+                            >
+                              <UserCircle
+                                size={18}
+                                weight="duotone"
+                                className="shrink-0 text-primary"
+                                aria-hidden
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-medium">
+                                  {rotuloDoContato(c, t)}
+                                </span>
+                                {(c.phone_number || c.email) && (
+                                  <span className="block truncate text-xs text-muted-foreground">
+                                    {c.phone_number ?? c.email}
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {/*
             O CONVIDADO — opcional, e é o que faz o convite do Google existir.
             Sem e-mail aqui o evento nasce só na agenda do atendente, que é o
@@ -582,6 +698,11 @@ export function AgendaClient({
                 erroAoCarregar={horariosFalharam}
                 fusoSuposto={horarios?.fuso_suposto ?? false}
                 fontesDefasadas={horarios?.fontes_defasadas}
+                quemSeraAtendido={
+                  contatoSelecionado
+                    ? { nome: contatoSelecionado.nome, aceitaMensagem: contatoSelecionado.aceitaMensagem }
+                    : undefined
+                }
                 horarioInicial={horarioEscolhido ?? undefined}
                 // ESTE é o fio que faltava. Sem ele o "Marcado ✓" era estado
                 // local do React e nenhuma linha nascia no banco.
@@ -625,9 +746,11 @@ export function AgendaClient({
                       event_type_id: tipo.id,
                       starts_at: instante,
                       guest_email: convidado,
+                      contact_id: contatoSelecionado?.id,
                     })
                     .then((r) => {
                       setEmailConvidado("");
+                      setContatoSelecionado(null);
                       return r;
                     });
                 }}
