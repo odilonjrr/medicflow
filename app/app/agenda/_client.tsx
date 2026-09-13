@@ -489,33 +489,20 @@ export function AgendaClient({
           maior só roubaria contexto da tela atrás.
         */}
         {/*
-          A CADEIA DE ALTURAS, e ela é o que faz a lista de horários rolar.
-          
-          O `overflow-y-auto` da lista (`PainelDeMarcacao`) sempre esteve no
-          elemento certo e era INERTE: `overflow-y-auto` cujo pai tem altura
-          `auto` não rola — o filho cresce, `scrollHeight === clientHeight`, e os
-          últimos horários ficavam abaixo da dobra sem nenhum jeito de alcançá-los.
-          E a página também não rolava: o `SheetContent` é `position: fixed`, e
-          transbordo de elemento fixo não estende a área rolável do documento.
-          
-          Abaixo de `lg` o próprio Sheet rola (ali o painel empilha e a lista é
-          uma seção, não uma coluna). De `lg` para cima o Sheet segura a altura e
-          a LISTA rola, com calendário e contexto parados.
-          
-          ⚠️ `lg:overflow-hidden` e não `overflow-y-auto` em todo breakpoint: em
-          `lg` o Sheet tem 1040px com `p-6` → 992px de caixa contra ~980px de
-          painel. Uma barra vertical come essa folga, e como o CSS computa
-          `overflow-x: visible` como `auto` quando `overflow-y` não é `visible`,
-          nasceria barra HORIZONTAL exatamente no breakpoint que o conserto de
-          largura acabou de reparar.
+          SCROLL DO SHEET: wrapper interno (`flex-1 overflow-y-auto`) rola o
+          conteúdo. O SheetContent fica `overflow-hidden` para não competir com
+          o body scroll do Radix Dialog — colocar `overflow-y-auto` direto no
+          SheetContent (que é `position: fixed`) fazia o fundo rolar em vez do
+          painel em telas de 15".
         */}
         <SheetContent
           side="right"
-          className="flex w-full flex-col overflow-y-auto overflow-x-hidden sm:max-w-3xl lg:max-w-[1040px]"
+          className="flex max-h-dvh w-full flex-col overflow-hidden sm:max-w-3xl lg:max-w-[1040px]"
         >
-          <SheetHeader>
+          <SheetHeader className="shrink-0">
             <SheetTitle>{remarcandoId ? t("Remarcar agendamento") : t("Novo agendamento")}</SheetTitle>
           </SheetHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden -mx-6 px-6 pb-6">
           {tiposIniciais.length > 1 && (
             <div className="mt-2" data-testid="tipos-de-agendamento">
               <p className="mb-1 text-xs font-medium text-text-muted">{t("Tipo de agendamento")}</p>
@@ -878,6 +865,7 @@ export function AgendaClient({
               />
             </div>
           )}
+          </div>
         </SheetContent>
       </Sheet>
 
