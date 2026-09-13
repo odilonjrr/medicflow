@@ -10,6 +10,7 @@ import * as React from "react";
 import { AvisoDaConexaoGoogle } from "./_components/AvisoDaConexaoGoogle";
 import { CartaoDaConexaoGoogle } from "./_components/CartaoDaConexaoGoogle";
 
+import { apiClient } from "@/lib/api/client";
 import { AgendaInterativa } from "@/components/agenda/AgendaInterativa";
 import { FiltroDePessoas } from "@/components/agenda/FiltroDePessoas";
 import { HistoricoDaAgenda } from "@/components/agenda/HistoricoDaAgenda";
@@ -109,14 +110,19 @@ export function AgendaClient({
   const [cancelandoId, setCancelandoId] = React.useState<string | null>(null);
   const [motivo, setMotivo] = React.useState("");
   // O PACIENTE/CONTATO que será atendido — opcional, mas é o que dá nome ao
-  // agendamento na grade e no histórico.
+  // agendamento na grade e no histórico. Pode ser um contato existente (com id)
+  // ou um novo que será criado ao confirmar (sem id, com nome+telefone).
   const [contatoSelecionado, setContatoSelecionado] = React.useState<{
-    id: string;
+    id?: string;
     nome: string;
+    telefone?: string;
     aceitaMensagem: boolean;
   } | null>(null);
   const [buscaContato, setBuscaContato] = React.useState("");
   const [buscaContatoDebounced, setBuscaContatoDebounced] = React.useState("");
+  const [novoContatoNome, setNovoContatoNome] = React.useState("");
+  const [novoContatoTelefone, setNovoContatoTelefone] = React.useState("");
+  const [mostrarFormNovoContato, setMostrarFormNovoContato] = React.useState(false);
   React.useEffect(() => {
     const t = setTimeout(() => setBuscaContatoDebounced(buscaContato.trim()), 250);
     return () => clearTimeout(t);
@@ -467,6 +473,9 @@ export function AgendaClient({
             setEmailConvidado("");
             setContatoSelecionado(null);
             setBuscaContato("");
+            setNovoContatoNome("");
+            setNovoContatoTelefone("");
+            setMostrarFormNovoContato(false);
           }
         }}
       >
@@ -532,17 +541,30 @@ export function AgendaClient({
               </div>
             </div>
           )}
-          {/* PACIENTE/CONTATO — quem será atendido neste agendamento. */}
+          {/* PACIENTE/CONTATO — quem será atendido neste agendamento.
+              Dois caminhos: buscar existente ou cadastrar novo com nome+telefone.
+              Se for novo, o contato é criado automaticamente ao confirmar. */}
           <div className="mt-4">
             <p className="mb-1 text-xs font-medium text-text-muted">
-              {t("Paciente / Contato")}{" "}
-              <span className="font-normal opacity-70">({t("opcional")})</span>
+              {t("Paciente / Contato")}
             </p>
             {contatoSelecionado ? (
               <div className="flex items-center gap-2 rounded-md border border-accent bg-accent/10 px-3 py-2">
                 <UserCircle size={20} weight="duotone" className="shrink-0 text-accent" aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                  {contatoSelecionado.nome}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">
+                    {contatoSelecionado.nome}
+                  </span>
+                  {contatoSelecionado.telefone && (
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {contatoSelecionado.telefone}
+                    </span>
+                  )}
+                  {!contatoSelecionado.id && (
+                    <span className="block text-xs text-amber-600 dark:text-amber-400">
+                      {t("Novo contato — será criado ao confirmar")}
+                    </span>
+                  )}
                 </span>
                 <button
                   type="button"
@@ -552,6 +574,55 @@ export function AgendaClient({
                 >
                   <X size={14} weight="bold" aria-hidden />
                 </button>
+              </div>
+            ) : mostrarFormNovoContato ? (
+              <div className="space-y-2 rounded-md border border-border p-3">
+                <p className="text-xs font-medium text-text-muted">{t("Cadastrar novo paciente")}</p>
+                <input
+                  data-testid="novo-contato-nome"
+                  type="text"
+                  autoComplete="off"
+                  value={novoContatoNome}
+                  onChange={(e) => setNovoContatoNome(e.target.value)}
+                  className="w-full rounded-md border border-border bg-surface p-2 text-sm outline-hidden focus:border-border-strong"
+                  placeholder={t("Nome do paciente")}
+                />
+                <input
+                  data-testid="novo-contato-telefone"
+                  type="tel"
+                  autoComplete="off"
+                  value={novoContatoTelefone}
+                  onChange={(e) => setNovoContatoTelefone(e.target.value)}
+                  className="w-full rounded-md border border-border bg-surface p-2 text-sm outline-hidden focus:border-border-strong"
+                  placeholder={t("WhatsApp (+5521999998888)")}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setMostrarFormNovoContato(false);
+                      setNovoContatoNome("");
+                      setNovoContatoTelefone("");
+                    }}
+                  >
+                    {t("Voltar")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={!novoContatoNome.trim()}
+                    onClick={() => {
+                      setContatoSelecionado({
+                        nome: novoContatoNome.trim(),
+                        telefone: novoContatoTelefone.trim() || undefined,
+                        aceitaMensagem: true,
+                      });
+                      setMostrarFormNovoContato(false);
+                    }}
+                  >
+                    {t("Usar este paciente")}
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-1">
@@ -592,6 +663,7 @@ export function AgendaClient({
                                 setContatoSelecionado({
                                   id: c.id,
                                   nome: rotuloDoContato(c, t),
+                                  telefone: c.phone_number ?? undefined,
                                   aceitaMensagem: !c.is_blocked,
                                 });
                                 setBuscaContato("");
@@ -620,6 +692,17 @@ export function AgendaClient({
                     )}
                   </div>
                 )}
+                <button
+                  type="button"
+                  className="mt-1 w-full rounded-md border border-dashed border-border px-3 py-2 text-left text-xs text-text-muted hover:border-border-strong hover:text-text"
+                  onClick={() => {
+                    setMostrarFormNovoContato(true);
+                    setBuscaContato("");
+                    setNovoContatoNome(buscaContato.trim());
+                  }}
+                >
+                  + {t("Cadastrar novo paciente")}
+                </button>
               </div>
             )}
           </div>
@@ -706,7 +789,7 @@ export function AgendaClient({
                 horarioInicial={horarioEscolhido ?? undefined}
                 // ESTE é o fio que faltava. Sem ele o "Marcado ✓" era estado
                 // local do React e nenhuma linha nascia no banco.
-                onConfirmar={(instante) => {
+                onConfirmar={async (instante) => {
                   // ⚠️ SEM `owner_user_id`, e é isto que conserta o 422.
                   //
                   // Isto mandava `pessoas[0]?.id` — a PRIMEIRA pessoa da lista.
@@ -741,16 +824,35 @@ export function AgendaClient({
                         return r;
                       });
                   }
+                  // Se o contato é NOVO (sem id), cria via API antes de marcar.
+                  let contactId = contatoSelecionado?.id;
+                  if (contatoSelecionado && !contatoSelecionado.id) {
+                    try {
+                      const res = await apiClient.post<{ data: { id: string } }>(
+                        "/api/v1/contacts",
+                        {
+                          name: contatoSelecionado.nome,
+                          phone_number: contatoSelecionado.telefone || undefined,
+                          source: "agenda",
+                        },
+                      );
+                      contactId = res.data.id;
+                    } catch {
+                      return Promise.reject(new Error("Falha ao criar contato"));
+                    }
+                  }
                   return marcar
                     .mutateAsync({
                       event_type_id: tipo.id,
                       starts_at: instante,
                       guest_email: convidado,
-                      contact_id: contatoSelecionado?.id,
+                      contact_id: contactId,
                     })
                     .then((r) => {
                       setEmailConvidado("");
                       setContatoSelecionado(null);
+                      setNovoContatoNome("");
+                      setNovoContatoTelefone("");
                       return r;
                     });
                 }}
