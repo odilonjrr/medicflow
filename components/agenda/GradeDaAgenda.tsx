@@ -628,27 +628,126 @@ function VisaoDeMes({
   agora,
   agendamentos,
   pessoas,
+  onAbrir,
+  interacao,
 }: {
   ancora: Date;
   agora: Date;
   agendamentos: Agendamento[];
   pessoas: Pessoa[];
+  onAbrir?: (id: string) => void;
+  interacao?: InteracaoDaGrade;
 }) {
   const t = useT();
   const localeDaData = useLocaleDeData();
   const primeiro = startOfWeek(startOfMonth(ancora), { weekStartsOn: 0 });
-  // SEIS semanas sempre, mesmo quando o mês cabe em cinco.
-  //
-  // Um mês que ocupa 5 linhas e outro que ocupa 6 fariam a célula mudar de
-  // altura ao virar o mês — a grade "pula" e quem estava olhando um dia perde
-  // a referência. O custo é uma linha de dias do mês seguinte, que já nasce
-  // esmaecida.
   const semanas: Date[][] = Array.from({ length: 6 }, (_, s) =>
     Array.from({ length: 7 }, (_, d) => addDays(primeiro, s * 7 + d)),
   );
 
+  const gradeRef = React.useRef<HTMLDivElement>(null);
+  const [arrastando, setArrastando] = React.useState<{
+    id: string;
+    diaOrigem: string;
+  } | null>(null);
+  const [diaAlvo, setDiaAlvo] = React.useState<string | null>(null);
+  const gesto = React.useRef<{
+    id: string;
+    x0: number;
+    y0: number;
+    diaOrigem: string;
+    moveu: boolean;
+  } | null>(null);
+
+  const celulaSobPonto = React.useCallback(
+    (clientX: number, clientY: number): string | null => {
+      const celulas = Array.from(
+        gradeRef.current?.querySelectorAll<HTMLElement>("[data-dia-mes]") ?? [],
+      );
+      for (const el of celulas) {
+        const r = el.getBoundingClientRect();
+        if (clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom) {
+          return el.dataset.diaMes ?? null;
+        }
+      }
+      return null;
+    },
+    [],
+  );
+
+  const aoApontar = React.useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>, a: Agendamento) => {
+      if (e.button !== 0 || !interacao?.onArrastarPara) return;
+      const el = e.currentTarget;
+      const g = {
+        id: a.id,
+        x0: e.clientX,
+        y0: e.clientY,
+        diaOrigem: chaveDoDia(new Date(a.comeca)),
+        moveu: false,
+      };
+      gesto.current = g;
+      el.setPointerCapture(e.pointerId);
+
+      const mover = (ev: PointerEvent) => {
+        if (!g.moveu && Math.abs(ev.clientY - g.y0) < 4 && Math.abs(ev.clientX - g.x0) < 4) return;
+        if (!g.moveu) {
+          g.moveu = true;
+          setArrastando({ id: g.id, diaOrigem: g.diaOrigem });
+        }
+        setDiaAlvo(celulaSobPonto(ev.clientX, ev.clientY));
+      };
+      const soltar = (ev: PointerEvent) => {
+        window.removeEventListener("pointermove", mover);
+        window.removeEventListener("pointerup", soltar);
+        window.removeEventListener("pointercancel", soltar);
+        const houve = g.moveu;
+        const alvo = houve ? celulaSobPonto(ev.clientX, ev.clientY) : null;
+        setArrastando(null);
+        setDiaAlvo(null);
+        setTimeout(() => { gesto.current = null; }, 0);
+
+        if (!alvo || alvo === g.diaOrigem || !interacao.onArrastarPara) return;
+
+        const ag = agendamentos.find((x) => x.id === g.id);
+        if (!ag) return;
+        const comeca = new Date(ag.comeca);
+        const minutoOriginal = comeca.getHours() * 60 + comeca.getMinutes();
+
+        const publicados = interacao.horariosPorDia[alvo] ?? [];
+        const alvoSlot = alvoDoArraste(publicados, minutoOriginal);
+
+        const diaDestino = new Date(`${alvo}T12:00:00`);
+        const minutoCelula = celulaQueContem(minutoOriginal);
+        const inicio = instanteDoMinuto(diaDestino, minutoCelula);
+        const fim = instanteDoMinuto(diaDestino, minutoCelula + PASSO_DA_CELULA_MIN);
+        const ocupado = agendamentos.some(
+          (x) =>
+            x.id !== g.id &&
+            x.situacao !== "cancelled" &&
+            new Date(x.comeca) < fim &&
+            new Date(x.termina) > inicio,
+        );
+
+        interacao.onArrastarPara({
+          id: g.id,
+          instante: alvoSlot?.instante ?? null,
+          razao: razaoDoBloco({
+            motivo: interacao.motivo ?? null,
+            ocupado,
+            passado: fim.getTime() <= agora.getTime(),
+          }),
+        });
+      };
+      window.addEventListener("pointermove", mover);
+      window.addEventListener("pointerup", soltar);
+      window.addEventListener("pointercancel", soltar);
+    },
+    [interacao, agendamentos, agora, celulaSobPonto],
+  );
+
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div ref={gradeRef} className="flex min-h-0 flex-1 flex-col">
       <div className="grid grid-cols-7 border-b border-border">
         {semanas[0]?.map((d) => (
           <div
@@ -661,15 +760,19 @@ function VisaoDeMes({
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-7 grid-rows-[repeat(auto-fit,minmax(0,1fr))]">
         {semanas.flat().map((d) => {
+          const chave = chaveDoDia(d);
           const doDia = agendamentos.filter((c) => isSameDay(new Date(c.comeca), d));
           const doMes = isSameMonth(d, ancora);
+          const eAlvo = arrastando && diaAlvo === chave && chave !== arrastando.diaOrigem;
           return (
             <div
               key={d.toISOString()}
-              data-testid={`celula-mes-${format(d, "yyyy-MM-dd")}`}
+              data-testid={`celula-mes-${chave}`}
+              data-dia-mes={chave}
               className={cn(
-                "min-h-20 border-b border-r border-border p-1",
+                "min-h-20 border-b border-r border-border p-1 transition-colors",
                 !doMes && "bg-surface-elevated/30",
+                eAlvo && "bg-accent/10 ring-2 ring-inset ring-accent",
               )}
             >
               <div className="mb-1 flex items-center justify-between px-0.5">
@@ -694,12 +797,23 @@ function VisaoDeMes({
               <div className="space-y-0.5">
                 {doDia.slice(0, 2).map((c) => {
                   const trilha = pessoas.find((p) => p.id === c.responsavelId)?.trilha ?? 1;
+                  const esteArrastando = arrastando?.id === c.id;
                   return (
-                    <div
+                    <button
                       key={c.id}
+                      type="button"
                       data-testid={`chip-mes-${c.id}`}
-                      className="flex items-center gap-1 rounded-sm px-1 py-0.5"
+                      className={cn(
+                        "flex w-full items-center gap-1 rounded-sm px-1 py-0.5 text-left",
+                        interacao?.onArrastarPara && "cursor-grab active:cursor-grabbing",
+                        esteArrastando && "opacity-40",
+                      )}
                       style={{ background: fundoDaTrilha(trilha, 14) }}
+                      onClick={() => {
+                        if (gesto.current?.moveu) return;
+                        onAbrir?.(c.id);
+                      }}
+                      onPointerDown={(e) => aoApontar(e, c)}
                     >
                       <span
                         aria-hidden
@@ -709,7 +823,7 @@ function VisaoDeMes({
                       <span className="truncate text-[10px] leading-4 text-text">
                         {format(new Date(c.comeca), "HH:mm")} {c.quemSeraAtendido ?? c.titulo}
                       </span>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -960,7 +1074,14 @@ export function GradeDaAgenda({
       )}
     >
       {visao === "mes" ? (
-        <VisaoDeMes ancora={ancora} agora={agora} agendamentos={agendamentos} pessoas={pessoas} />
+        <VisaoDeMes
+          ancora={ancora}
+          agora={agora}
+          agendamentos={agendamentos}
+          pessoas={pessoas}
+          onAbrir={onAbrirAgendamento}
+          interacao={interacao}
+        />
       ) : (
         // A rolagem mora AQUI dentro, e não na página: `html, body` têm
         // `overflow-x: hidden` no globals.css, então uma grade que estourasse a
