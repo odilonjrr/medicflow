@@ -511,7 +511,7 @@ export function AgendaClient({
         */}
         <SheetContent
           side="right"
-          className="flex w-full flex-col overflow-y-auto sm:max-w-3xl lg:max-w-[1040px] lg:overflow-hidden"
+          className="flex w-full flex-col overflow-y-auto overflow-x-hidden sm:max-w-3xl lg:max-w-[1040px]"
         >
           <SheetHeader>
             <SheetTitle>{remarcandoId ? t("Remarcar agendamento") : t("Novo agendamento")}</SheetTitle>
