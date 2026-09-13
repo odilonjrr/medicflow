@@ -419,12 +419,12 @@ function BlocoDeAgendamento({
         style={{ backgroundColor: doGoogle ? "var(--color-border-strong)" : corDaTrilha(trilha) }}
       />
       <span className="ml-1 truncate text-[11px] font-semibold leading-4 text-text">
-        {agendamento.titulo}
+        {agendamento.quemSeraAtendido ?? agendamento.titulo}
       </span>
-      {duracao >= 45 && (
+      {duracao >= 30 && (
         <span className="ml-1 truncate text-[10px] leading-3 tabular-nums text-text-muted">
           {format(comeca, "HH:mm")}
-          {agendamento.quemSeraAtendido ? ` · ${agendamento.quemSeraAtendido}` : ""}
+          {agendamento.quemSeraAtendido ? ` · ${agendamento.titulo}` : ""}
         </span>
       )}
     </button>
@@ -707,7 +707,7 @@ function VisaoDeMes({
                         style={{ backgroundColor: corDaTrilha(trilha) }}
                       />
                       <span className="truncate text-[10px] leading-4 text-text">
-                        {format(new Date(c.comeca), "HH:mm")} {c.titulo}
+                        {format(new Date(c.comeca), "HH:mm")} {c.quemSeraAtendido ?? c.titulo}
                       </span>
                     </div>
                   );

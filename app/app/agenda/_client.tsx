@@ -517,8 +517,8 @@ export function AgendaClient({
             <SheetTitle>{remarcandoId ? t("Remarcar agendamento") : t("Novo agendamento")}</SheetTitle>
           </SheetHeader>
           {tiposIniciais.length > 1 && (
-            <div className="mt-4" data-testid="tipos-de-agendamento">
-              <p className="mb-2 text-xs font-medium text-text-muted">{t("Tipo de agendamento")}</p>
+            <div className="mt-2" data-testid="tipos-de-agendamento">
+              <p className="mb-1 text-xs font-medium text-text-muted">{t("Tipo de agendamento")}</p>
               <div className="flex flex-wrap gap-1.5">
                 {tiposIniciais.map((opcao) => (
                   <button
@@ -544,7 +544,7 @@ export function AgendaClient({
           {/* PACIENTE/CONTATO — quem será atendido neste agendamento.
               Dois caminhos: buscar existente ou cadastrar novo com nome+telefone.
               Se for novo, o contato é criado automaticamente ao confirmar. */}
-          <div className="mt-4">
+          <div className="mt-2">
             <p className="mb-1 text-xs font-medium text-text-muted">
               {t("Paciente / Contato")}
             </p>
@@ -715,7 +715,7 @@ export function AgendaClient({
             alguém decide isso ANTES de escolher o horário, e um campo abaixo de
             uma lista rolável de horários é um campo que ninguém vê.
           */}
-          <div className="mt-4">
+          <div className="mt-2">
             <label className="block text-xs font-medium text-text-muted" htmlFor="email-do-convidado">
               {t("E-mail do convidado")}{" "}
               <span className="font-normal opacity-70">({t("opcional")})</span>
@@ -748,7 +748,7 @@ export function AgendaClient({
             </p>
           </div>
           {tipo && (
-            <div className="mt-4 lg:min-h-0 lg:flex-1">
+            <div className="mt-2 lg:min-h-0 lg:flex-1">
               <PainelDeMarcacao
                 className="lg:h-full"
                 ancora={new Date()}
