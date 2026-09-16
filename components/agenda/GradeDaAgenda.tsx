@@ -418,11 +418,11 @@ function BlocoDeAgendamento({
         className="absolute inset-y-0 left-0 w-[3px] rounded-l-sm"
         style={{ backgroundColor: doGoogle ? "var(--color-border-strong)" : corDaTrilha(trilha) }}
       />
-      <span className="ml-1 truncate text-[11px] font-semibold leading-4 text-text">
+      <span className="ml-1 text-[11px] font-semibold leading-tight text-text">
         {agendamento.quemSeraAtendido ?? agendamento.titulo}
       </span>
       {duracao >= 30 && (
-        <span className="ml-1 truncate text-[10px] leading-3 tabular-nums text-text-muted">
+        <span className="ml-1 text-[10px] leading-tight tabular-nums text-text-muted">
           {format(comeca, "HH:mm")}
           {agendamento.quemSeraAtendido ? ` · ${agendamento.titulo}` : ""}
         </span>
