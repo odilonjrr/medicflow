@@ -146,12 +146,14 @@ export async function loadAuthUser(): Promise<AuthUser | null> {
   }
   if (!user) return null;
 
-  // Platform admin? (active = no revoked_at). RLS returns null for non-admins.
-  //
-  // ⚠️ O erro é capturado de propósito: aqui `data: null` é AMBÍGUO — significa tanto
-  // "não é platform admin" (RLS filtrou, estado normal) quanto "a query falhou".
-  // Sem separar os dois, um banco instável rebaixa silenciosamente um super-admin.
-  const { data: paRow, error: paErro } = await supabase
+  // JWT validado — daqui em diante usamos o admin client (service role) para
+  // resolver permissões. O user.id vem de fonte confiável (JWT verificado acima),
+  // e as tabelas de permissão (platform_admins, user_organizations, organizations)
+  // precisam ser lidas sem RLS para que o usuário veja TODAS as suas organizações,
+  // não apenas a ativa.
+  const admin = createAdminClient();
+
+  const { data: paRow, error: paErro } = await admin
     .from("platform_admins")
     .select("user_id, revoked_at")
     .eq("user_id", user.id)
@@ -173,7 +175,7 @@ export async function loadAuthUser(): Promise<AuthUser | null> {
   // reconhece como "a minha"; `organization_id` como desempate, para o resultado
   // ser determinístico mesmo quando as duas entraram no mesmo instante (é o caso
   // de quem foi convidado para várias no mesmo lote).
-  const { data: rawMemberships, error: membErro } = await supabase
+  const { data: rawMemberships, error: membErro } = await admin
     .from("user_organizations")
     .select("organization_id, role, accepted_at, organizations(display_name, locale)")
     .eq("user_id", user.id)
